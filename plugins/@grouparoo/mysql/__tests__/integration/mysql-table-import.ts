@@ -30,7 +30,6 @@ const MYSQL_OPTIONS = {
 };
 
 const sourceTableName = `users_${process.env.JEST_WORKER_ID || 1}`;
-
 const createSourceTableSQL = `
 CREATE TABLE ${sourceTableName} (
   id int(11) NOT NULL,
@@ -46,6 +45,17 @@ CREATE TABLE ${sourceTableName} (
   PRIMARY KEY (id)
 )
 `;
+
+const oneToOneTableName = `profiles_${process.env.JEST_WORKER_ID || 1}`;
+const oneToOneTableSQL = `
+CREATE TABLE ${oneToOneTableName} (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  user_id int(11) NOT NULL,
+  screen_name VARCHAR(191) DEFAULT NULL,
+  PRIMARY KEY (id)
+)
+`;
+const profileIdData = { yes: null, no: null };
 
 const createUsersDestinationTableSQL = `
 CREATE TABLE output_users (
@@ -106,6 +116,24 @@ describe("integration/runs/mysql", () => {
     for (const i in rows) {
       const row = rows[i];
       const q = `INSERT INTO ${sourceTableName} (${Object.keys(row).join(
+        ", "
+      )}) VALUES ('${Object.values(row).join("', '")}')`;
+      await client.asyncQuery(q);
+
+      if (!profileIdData.yes) {
+        profileIdData.yes = row.id;
+      } else if (!profileIdData.no) {
+        profileIdData.no = row.id;
+      }
+    }
+
+    await client.asyncQuery(`drop table if exists ${oneToOneTableName}`);
+    await client.asyncQuery(oneToOneTableSQL);
+
+    // not everyone has a profile, write the one that does
+    if (profileIdData.yes) {
+      const row = { screen_name: "YES", user_id: profileIdData.yes };
+      const q = `INSERT INTO ${oneToOneTableName} (${Object.keys(row).join(
         ", "
       )}) VALUES ('${Object.values(row).join("', '")}')`;
       await client.asyncQuery(q);
@@ -564,4 +592,78 @@ describe("integration/runs/mysql", () => {
     },
     1000 * 60
   );
+
+  test("can make a one to one table source and property", async () => {
+    // create the source
+    session.params = {
+      csrfToken,
+      name: "mysql one to one source",
+      type: "mysql-table-import",
+      appGuid: app.guid,
+      options: { table: oneToOneTableName },
+      mapping: { user_id: "userId" },
+      state: "ready",
+    };
+    const sourceResponse = await specHelper.runAction("source:create", session);
+    expect(sourceResponse.error).toBeUndefined();
+    const oneSource = sourceResponse.source;
+    expect(oneSource).toBeTruthy();
+
+    session.params = {
+      csrfToken,
+      sourceGuid: oneSource.guid,
+      key: "screenName",
+      type: "string",
+      unique: false,
+      state: "draft",
+    };
+
+    const {
+      error,
+      profilePropertyRule,
+      pluginOptions,
+    } = await specHelper.runAction("profilePropertyRule:create", session);
+    expect(error).toBeUndefined();
+    expect(profilePropertyRule.guid).toBeTruthy();
+
+    // set the options
+    session.params = {
+      csrfToken,
+      guid: profilePropertyRule.guid,
+      state: "ready",
+      options: { column: "screen_name", "aggregation method": "exact" },
+    };
+    const { error: editError } = await specHelper.runAction(
+      "profilePropertyRule:edit",
+      session
+    );
+    expect(editError).toBeUndefined();
+  });
+
+  test("the profile property rule sets one to one data upon import", async () => {
+    expect(profileIdData.yes).toBeTruthy();
+    expect(profileIdData.no).toBeTruthy();
+
+    let found, profile, properties;
+
+    found = await Profile.findOrCreateByUniqueProfileProperties({
+      userId: profileIdData.yes,
+    });
+    expect(found.isNew).toBe(false);
+    profile = found.profile;
+    await profile.import();
+    await profile.reload();
+    properties = await profile.properties();
+    expect(properties.screenName.value).toMatch("YES");
+
+    found = await Profile.findOrCreateByUniqueProfileProperties({
+      userId: profileIdData.no,
+    });
+    expect(found.isNew).toBe(false);
+    profile = found.profile;
+    await profile.import();
+    await profile.reload();
+    properties = await profile.properties();
+    expect(properties.screenName.value).toBeNull();
+  });
 });
