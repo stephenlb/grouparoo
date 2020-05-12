@@ -7,6 +7,7 @@ import ProfileGroupsList from "../../components/lists/profileGroups";
 import LogsList from "../../components/lists/logs";
 import ImportsList from "../../components/lists/imports";
 import ExportsList from "../../components/lists/exports";
+import EventStream from "../../components/lists/eventStream";
 import { useApi } from "../../hooks/useApi";
 
 export default function (props) {
@@ -83,6 +84,10 @@ export default function (props) {
             <ProfilePropertiesList {...props} />
           </Col>
         </Row>
+      </Fragment>
+
+      <Fragment key="events">
+        <EventStream {...props} />
       </Fragment>
 
       <Fragment key="imports">
