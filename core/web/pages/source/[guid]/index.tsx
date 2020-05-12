@@ -17,6 +17,7 @@ export default function (props) {
     state: "draft",
     previewAvailable: false,
     schedule: { guid: "" },
+    connection: { skipSourceMapping: false },
   });
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export default function (props) {
         </Card>
       </Fragment>
 
-      {source.previewAvailable ? (
+      {source.previewAvailable && !source.connection.skipSourceMapping ? (
         <Fragment key="mapping">
           <SourceMapping {...props} />
         </Fragment>

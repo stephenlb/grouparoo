@@ -24,7 +24,12 @@ export default function ({
     appGuid: "",
     options: {},
     app: { name: "", guid: "", icon: "" },
-    connection: { name: "", description: "", options: [] },
+    connection: {
+      name: "",
+      description: "",
+      skipSourceMapping: false,
+      options: [],
+    },
     previewAvailable: false,
   });
   const { guid } = query;
@@ -77,7 +82,11 @@ export default function ({
 
   const onSubmit = async (event) => {
     event.preventDefault();
-    const state = source.previewAvailable ? undefined : "ready";
+    const state = source.connection.skipSourceMapping
+      ? "ready"
+      : source.previewAvailable
+      ? undefined
+      : "ready";
 
     const response = await execApi(
       "put",
@@ -110,6 +119,7 @@ export default function ({
         `/api/${apiVersion}/source/${guid}`
       );
       if (response) {
+        successHandler.set({ message: "source deleted" });
         Router.push("/sources");
       }
     }
