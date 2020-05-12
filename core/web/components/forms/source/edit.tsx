@@ -196,7 +196,6 @@ export default function ({
                             id="typeahead"
                             labelKey="key"
                             onChange={(selected) => {
-                              console.log(selected);
                               updateOption(opt.key, selected[0]?.key);
                             }}
                             options={connectionOptions[opt.key]?.options.map(
@@ -320,7 +319,9 @@ export default function ({
                   {preview.map((row, i) => (
                     <tr key={`row-${i}`}>
                       {previewColumns.map((col, j) => (
-                        <td key={`table-${i}-${j}`}>{row[col]}</td>
+                        <td key={`table-${i}-${j}`}>
+                          {row[col] ? JSON.stringify(row[col]) : null}
+                        </td>
                       ))}
                     </tr>
                   ))}
